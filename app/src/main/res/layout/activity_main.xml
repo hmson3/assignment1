@@ -9,20 +9,11 @@
 
 
     <Button
-        android:id="@+id/btnUploadMap"
+        android:id="@+id/btnToggleMap"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Upload Map"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-    <Button
-        android:id="@+id/btnDeleteMap"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Delete Map"
-        app:layout_constraintEnd_toStartOf="@+id/btnRotateMap"
-        app:layout_constraintStart_toEndOf="@+id/btnUploadMap"
         app:layout_constraintTop_toTopOf="parent" />
 
     <Button
@@ -31,15 +22,16 @@
         android:layout_height="wrap_content"
         android:text="Rotate Map"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/btnToggleMap"
         app:layout_constraintTop_toTopOf="parent" />
 
     <Button
-        android:id="@+id/btnScan"
+        android:id="@+id/btnWardriving"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Scan APs"
-        app:layout_constraintTop_toBottomOf="@+id/btnDeleteMap"
-        tools:layout_editor_absoluteX="0dp" />
+        android:text="War driving"
+        app:layout_constraintTop_toBottomOf="@+id/btnToggleMap"
+        tools:layout_editor_absoluteX="16dp" />
 
     <ImageView
         android:id="@+id/mapImageView"
@@ -50,6 +42,6 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/btnDeleteMap" />
+        app:layout_constraintTop_toBottomOf="@+id/btnWardriving" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
