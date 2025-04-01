@@ -7,7 +7,7 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-
+    <!-- 업로드 버튼 -->
     <Button
         android:id="@+id/btnToggleMap"
         android:layout_width="wrap_content"
@@ -16,32 +16,71 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
+    <!-- 회전 버튼 -->
     <Button
         android:id="@+id/btnRotateMap"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Rotate Map"
+        app:layout_constraintEnd_toStartOf="@+id/btnExportCsv"
+        app:layout_constraintStart_toEndOf="@id/btnToggleMap"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- 워드라이빙 버튼 -->
+
+    <Button
+        android:id="@+id/btnExportCsv"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Export CSV"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@+id/btnToggleMap"
         app:layout_constraintTop_toTopOf="parent" />
 
     <Button
         android:id="@+id/btnWardriving"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="War driving"
-        app:layout_constraintTop_toBottomOf="@+id/btnToggleMap"
-        tools:layout_editor_absoluteX="16dp" />
-
-    <ImageView
-        android:id="@+id/mapImageView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:contentDescription="Map Image"
-        android:scaleType="fitCenter"
+        android:text="War driving"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btnRotateMap" />
+
+    <!-- 이미지 + 마커를 담는 FrameLayout -->
+    <FrameLayout
+        android:id="@+id/mapContainer"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/btnWardriving" />
+        app:layout_constraintTop_toBottomOf="@id/btnWardriving">
+
+        <ImageView
+            android:id="@+id/mapImageView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="Map Image"
+            android:scaleType="fitCenter" />
+
+        <!-- 마커는 코드에서 여기에 추가됨 -->
+    </FrameLayout>
+
+    <Button
+        android:id="@+id/btnLocalization"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Localization"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btnRotateMap" />
+
+    <TextView
+        android:id="@+id/txtPrediction"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="(x, y)"
+        android:textSize="20sp"
+        app:layout_constraintBottom_toTopOf="@+id/mapContainer"
+        app:layout_constraintEnd_toStartOf="@+id/btnLocalization"
+        app:layout_constraintStart_toEndOf="@+id/btnWardriving"
+        app:layout_constraintTop_toBottomOf="@+id/btnRotateMap" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
