@@ -14,6 +14,7 @@ import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
@@ -49,16 +50,17 @@ class MainActivity : AppCompatActivity() {
     private val markerPositions = mutableSetOf<Pair<Float, Float>>()
     private val markerViews = mutableMapOf<Pair<Float, Float>, View>()
 
-    private val pickImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        uri?.let {
-            currentImageUri = it
-            imageView.setImageURI(it)
-            imageView.rotation = rotateAngle
-            isMapUploaded = true
-            toggleMapButton.text = "Delete Map"
-            Toast.makeText(this, "Map uploaded", Toast.LENGTH_SHORT).show()
+    private val pickImageLauncher =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+            uri?.let {
+                currentImageUri = it
+                imageView.setImageURI(it)
+                imageView.rotation = rotateAngle
+                isMapUploaded = true
+                toggleMapButton.text = "Delete Map"
+                Toast.makeText(this, "Map uploaded", Toast.LENGTH_SHORT).show()
+            }
         }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -79,6 +81,18 @@ class MainActivity : AppCompatActivity() {
 
         toggleMapButton.setOnClickListener {
             if (!isMapUploaded) {
+                imageView.setImageDrawable(null)
+                imageView.rotation = 0f
+                rotateAngle = 0f
+                imageView.requestLayout()
+                markerPositions.clear()
+                markerViews.clear()
+                blueMarker = null
+                predictionLabel.text = ""
+                predictionLabel.visibility = View.GONE
+
+                // CSV 데이터 삭제
+                File(filesDir, "wardriving_data.csv").delete()
                 pickImageLauncher.launch("image/*")
             } else {
                 imageView.setImageDrawable(null)
@@ -107,18 +121,37 @@ class MainActivity : AppCompatActivity() {
 
         exportButton.setOnClickListener {
             val file = File(filesDir, "wardriving_data.csv")
+
+            // 로그로 파일 경로 & 존재 여부 확인
+            Log.d("Export", "File exists: ${file.exists()} - path: ${file.absolutePath}")
+
             if (!file.exists()) {
                 Toast.makeText(this, "No data to export", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+
+            // FileProvider를 이용해서 uri 만들기
+            val uri = FileProvider.getUriForFile(
+                this,
+                "$packageName.fileprovider",
+                file
+            )
+
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = "text/csv"
                 putExtra(Intent.EXTRA_SUBJECT, "Wardriving Data")
                 putExtra(Intent.EXTRA_STREAM, uri)
+
+                // 🔥 파일 읽기 권한 꼭 줘야함!
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            startActivity(Intent.createChooser(intent, "Send CSV via Email"))
+
+            try {
+                startActivity(Intent.createChooser(intent, "Send CSV via Email"))
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Toast.makeText(this, "No email app found.", Toast.LENGTH_SHORT).show()
+            }
         }
 
         wardrivingButton.setOnClickListener {
@@ -147,15 +180,17 @@ class MainActivity : AppCompatActivity() {
             }
 
             if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED ||
-                checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Location permissions are not granted.", Toast.LENGTH_SHORT).show()
+                checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
+            ) {
+                Toast.makeText(this, "Location permissions are not granted.", Toast.LENGTH_SHORT)
+                    .show()
                 return@setOnClickListener
             }
             val file = File(filesDir, "wardriving_data.csv")
             if (!file.exists()) {
-                Toast.makeText(this@MainActivity, "No saved data to compare.", Toast.LENGTH_SHORT).show()
-            }
-            else {
+                Toast.makeText(this@MainActivity, "No saved data to compare.", Toast.LENGTH_SHORT)
+                    .show()
+            } else {
                 isWardrivingMode = false
                 wardrivingButton.isEnabled = true
                 localizationButton.isEnabled = false
@@ -167,7 +202,8 @@ class MainActivity : AppCompatActivity() {
 
         frameLayout.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_DOWN && isWardrivingMode) {
-                val imageRect = getImageDisplayRectConsideringRotation(imageView) ?: return@setOnTouchListener true
+                val imageRect = getImageDisplayRectConsideringRotation(imageView)
+                    ?: return@setOnTouchListener true
 
                 // 이미지 내부 터치인지 확인
                 if (!imageRect.contains(event.x, event.y)) return@setOnTouchListener true
@@ -237,12 +273,14 @@ class MainActivity : AppCompatActivity() {
                         markerViews.remove(Pair(x, y))
                         deleteMarkerDataFromCsv(x, y)
                     }
+
                     2 -> showSavedData(x, y)
                     3 -> dialog.dismiss()
                 }
             }
             .show()
     }
+
     private fun showPredictionMarker(normX: Float, normY: Float) {
         val imageRect = getImageDisplayRectConsideringRotation(imageView) ?: return
 
@@ -262,6 +300,11 @@ class MainActivity : AppCompatActivity() {
             }
         }
         frameLayout.addView(blueMarker)
+        // 스캔 완료 시 깜빡임 애니메이션
+        blueMarker?.animate()?.alpha(0f)?.setDuration(400)
+            ?.withEndAction {
+                blueMarker?.animate()?.alpha(1f)?.setDuration(400)?.start()
+            }?.start()
     }
 
     private fun getImageDisplayRectConsideringRotation(imageView: ImageView): RectF? {
@@ -326,7 +369,8 @@ class MainActivity : AppCompatActivity() {
                     }
                     File(filesDir, "wardriving_data.csv").appendText("$data\n")
 
-                    Toast.makeText(this@MainActivity, "Wi-Fi data saved.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "Wi-Fi data saved.", Toast.LENGTH_SHORT)
+                        .show()
                 }
             }
             registerReceiver(receiver, IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION))
@@ -335,6 +379,7 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Permission error: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
+
     private fun deleteMarkerDataFromCsv(x: Float, y: Float) {
         val file = File(filesDir, "wardriving_data.csv")
         if (!file.exists()) return
@@ -344,17 +389,19 @@ class MainActivity : AppCompatActivity() {
         }
         file.writeText(newLines.joinToString("\n"))
     }
+
     private val Int.dp: Int
         get() = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP, this.toFloat(), resources.displayMetrics
         ).toInt()
     private var isLocalizationRunning = false
     private val localizationHandler = Handler(Looper.getMainLooper())
+    private var scanDelay = 15000L
     private val localizationRunnable = object : Runnable {
         override fun run() {
             if (!isLocalizationRunning) return
             performLocalizationScan()
-            localizationHandler.postDelayed(this, 5000) // 5초 간격
+            localizationHandler.postDelayed(this, scanDelay) // 3초 간격
         }
     }
 
@@ -375,54 +422,80 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                val results = try {
-                    wifiManager.scanResults
-                } catch (e: SecurityException) {
-                    Toast.makeText(this@MainActivity, "Permission error: ${e.message}", Toast.LENGTH_SHORT).show()
+        if (wifiManager.startScan()) {
+            Toast.makeText(this, "Wi-Fi Scan Started", Toast.LENGTH_SHORT).show()
+            scanDelay = 15000L  // 성공 시 15초 유지
+
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    val results = try {
+                        wifiManager.scanResults
+                    } catch (e: SecurityException) {
+                        Toast.makeText(this@MainActivity, "Permission error: ${e.message}", Toast.LENGTH_SHORT).show()
+                        unregisterReceiver(this)
+                        return
+                    }
                     unregisterReceiver(this)
-                    return
-                }
-                unregisterReceiver(this)
 
-                val file = File(filesDir, "wardriving_data.csv")
-                if (!file.exists()) {
-                    Toast.makeText(this@MainActivity, "No saved data to compare.", Toast.LENGTH_SHORT).show()
-                    return
-                }
+                    Toast.makeText(this@MainActivity, "Scan Result Size: ${results.size}", Toast.LENGTH_SHORT).show()
 
-                val currentScan = results.associateBy { it.BSSID }
-                val scores = mutableMapOf<Pair<Float, Float>, Double>()
+                    val file = File(filesDir, "wardriving_data.csv")
+                    if (!file.exists()) {
+                        Toast.makeText(this@MainActivity, "No saved data to compare.", Toast.LENGTH_SHORT).show()
+                        return
+                    }
 
-                file.readLines().forEach { line ->
-                    val parts = line.split(",")
-                    if (parts.size < 6) return@forEach
-                    val x = parts[0].toFloat()
-                    val y = parts[1].toFloat()
-                    val bssid = parts[4]
-                    val level = parts[5].toInt()
+                    val currentScan = results.associateBy { it.BSSID }
+                    val scores = mutableMapOf<Pair<Float, Float>, Double>()
+                    val commonCounts = mutableMapOf<Pair<Float, Float>, Int>()
 
-                    currentScan[bssid]?.let {
-                        val diff = it.level - level
-                        val score = 100.0 / (1 + diff * diff)
-                        scores[Pair(x, y)] = (scores[Pair(x, y)] ?: 0.0) + score
+                    file.readLines().forEach { line ->
+                        val parts = line.split(",")
+                        if (parts.size < 6) return@forEach
+                        val x = parts[0].toFloat()
+                        val y = parts[1].toFloat()
+                        val bssid = parts[4]
+                        val level = parts[5].toInt()
+
+                        if (currentScan.containsKey(bssid)) {
+                            val diff = currentScan[bssid]!!.level - level
+                            val distance = diff * diff
+                            scores[Pair(x, y)] = (scores[Pair(x, y)] ?: 0.0) + distance
+                            commonCounts[Pair(x, y)] = (commonCounts[Pair(x, y)] ?: 0) + 1
+                        }
+                    }
+                    if (scores.isNotEmpty()) {
+                        val filteredScores = scores.filter { (pos, _) -> (commonCounts[pos] ?: 0) >= 2 }
+
+                        if (filteredScores.isEmpty()) {
+                            Toast.makeText(this@MainActivity, "No matching APs found.", Toast.LENGTH_SHORT).show()
+                            return
+                        }
+
+                        val finalScores = filteredScores.mapValues { (pos, totalDistance) ->
+                            val count = commonCounts[pos] ?: 1
+                            count * 200 - kotlin.math.ln(1 + totalDistance) * 10  // 로그 처리 거리
+                        }
+
+                        val best = finalScores.maxByOrNull { it.value }!!.key
+
+                        showPredictionMarker(best.first, best.second)
+
+                        predictionLabel.text = "(${String.format("%.2f", best.first)}, ${String.format("%.2f", best.second)})"
+                        predictionLabel.visibility = View.VISIBLE
+                    } else {
+                        Toast.makeText(this@MainActivity, "No matching APs found.", Toast.LENGTH_SHORT).show()
                     }
                 }
-
-                if (scores.isNotEmpty()) {
-                    val best = scores.maxByOrNull { it.value }!!.key
-                    showPredictionMarker(best.first, best.second)
-                    predictionLabel.text = "(${String.format("%.2f", best.first)}, ${String.format("%.2f", best.second)})"
-                    predictionLabel.visibility = View.VISIBLE
-                } else {
-                    Toast.makeText(this@MainActivity, "No matching APs found.", Toast.LENGTH_SHORT).show()
-                }
             }
-        }
 
-        registerReceiver(receiver, IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION))
-        wifiManager.startScan()
+            registerReceiver(receiver, IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION))
+        } else {
+            Toast.makeText(this, "Scan failed, increasing delay", Toast.LENGTH_SHORT).show()
+            scanDelay = 30000L  // 실패 시 30초로 증가
+        }
     }
+
+
 }
 
