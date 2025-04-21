@@ -81,18 +81,6 @@ class MainActivity : AppCompatActivity() {
 
         toggleMapButton.setOnClickListener {
             if (!isMapUploaded) {
-                imageView.setImageDrawable(null)
-                imageView.rotation = 0f
-                rotateAngle = 0f
-                imageView.requestLayout()
-                markerPositions.clear()
-                markerViews.clear()
-                blueMarker = null
-                predictionLabel.text = ""
-                predictionLabel.visibility = View.GONE
-
-                // CSV 데이터 삭제
-                File(filesDir, "wardriving_data.csv").delete()
                 pickImageLauncher.launch("image/*")
             } else {
                 imageView.setImageDrawable(null)
@@ -142,7 +130,7 @@ class MainActivity : AppCompatActivity() {
                 putExtra(Intent.EXTRA_SUBJECT, "Wardriving Data")
                 putExtra(Intent.EXTRA_STREAM, uri)
 
-                // 🔥 파일 읽기 권한 꼭 줘야함!
+
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
 
@@ -167,6 +155,18 @@ class MainActivity : AppCompatActivity() {
                 markerViews.values.forEach { it.visibility = View.VISIBLE }
                 predictionLabel.text = ""
                 predictionLabel.visibility = View.GONE
+                if (File(filesDir, "wardriving_data.csv").exists()) {
+                    File(filesDir, "wardriving_data.csv").readLines().forEach { line ->
+                        val parts = line.split(",")
+                        if (parts.size >= 2) {
+                            val x = parts[0].toFloat()
+                            val y = parts[1].toFloat()
+                            if (!markerPositions.contains(Pair(x, y))) {
+                                addLoadedMarker(x, y)
+                            }
+                        }
+                    }
+                }
                 Toast.makeText(this, "Tap on the map to scan.", Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(this, "Please upload a map first.", Toast.LENGTH_SHORT).show()
@@ -229,6 +229,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+
     private fun addMarker(normX: Float, normY: Float) {
         if (markerPositions.any { (x, y) ->
                 Math.abs(x - normX) < 0.1 && Math.abs(y - normY) < 0.1
@@ -253,10 +254,35 @@ class MainActivity : AppCompatActivity() {
                 if (isWardrivingMode) showMarkerMenu(this, normX, normY)
             }
         }
+        if (!startWifiScan(normX, normY)) return
         frameLayout.addView(marker)
         markerPositions.add(Pair(normX, normY))
         markerViews[Pair(normX, normY)] = marker
-        startWifiScan(normX, normY)
+
+    }
+    // csv 복원용 addLoadedMarker
+    private fun addLoadedMarker(x: Float, y: Float) {
+        val imageRect = getImageDisplayRectConsideringRotation(imageView) ?: return
+
+        val imgX = (imageRect.left + imageRect.width() * x).toInt()
+        val imgY = (imageRect.top + imageRect.height() * y).toInt()
+
+        val marker = View(this).apply {
+            layoutParams = FrameLayout.LayoutParams(10.dp, 10.dp).apply {
+                gravity = Gravity.TOP or Gravity.START
+                leftMargin = imgX - 5.dp
+                topMargin = imgY - 5.dp
+            }
+            background = ContextCompat.getDrawable(context, R.drawable.red_circle)
+            visibility = if (isWardrivingMode) View.VISIBLE else View.INVISIBLE
+            setOnClickListener {
+                if (isWardrivingMode) showMarkerMenu(this, x, y)
+            }
+        }
+
+        frameLayout.addView(marker)
+        markerPositions.add(Pair(x, y))
+        markerViews[Pair(x, y)] = marker
     }
 
 
@@ -356,7 +382,7 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun startWifiScan(x: Float, y: Float) {
+    private fun startWifiScan(x: Float, y: Float): Boolean {
         try {
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context?, intent: Intent?) {
@@ -374,9 +400,18 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             registerReceiver(receiver, IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION))
-            wifiManager.startScan()
+            val success = wifiManager.startScan()
+            if (!success) {
+                Toast.makeText(this, "Wi-Fi scan failed to start", Toast.LENGTH_SHORT).show()
+                unregisterReceiver(receiver)
+                return false
+            }
+
+            return true
+
         } catch (e: SecurityException) {
             Toast.makeText(this, "Permission error: ${e.message}", Toast.LENGTH_SHORT).show()
+            return false
         }
     }
 
@@ -437,8 +472,6 @@ class MainActivity : AppCompatActivity() {
                     }
                     unregisterReceiver(this)
 
-                    Toast.makeText(this@MainActivity, "Scan Result Size: ${results.size}", Toast.LENGTH_SHORT).show()
-
                     val file = File(filesDir, "wardriving_data.csv")
                     if (!file.exists()) {
                         Toast.makeText(this@MainActivity, "No saved data to compare.", Toast.LENGTH_SHORT).show()
@@ -495,7 +528,6 @@ class MainActivity : AppCompatActivity() {
             scanDelay = 30000L  // 실패 시 30초로 증가
         }
     }
-
 
 }
 
