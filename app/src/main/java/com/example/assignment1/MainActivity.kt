@@ -98,6 +98,7 @@ class MainActivity : AppCompatActivity() {
                 wardrivingButton.isEnabled = true
                 localizationButton.isEnabled = true
                 rotateButton.isEnabled = true
+                stopLocalizationLoop()
                 File(filesDir, "wardriving_data.csv").delete()
                 Toast.makeText(this, "Map deleted and data cleared", Toast.LENGTH_SHORT).show()
             }
