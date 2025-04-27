@@ -507,7 +507,7 @@ class MainActivity : AppCompatActivity() {
 
                         val finalScores = filteredScores.mapValues { (pos, totalDistance) ->
                             val count = commonCounts[pos] ?: 1
-                            count * 200 - kotlin.math.ln(1 + totalDistance) * 10  // 로그 처리 거리
+                            count * 200 - totalDistance  // 로그 처리 거리
                         }
 
                         val best = finalScores.maxByOrNull { it.value }!!.key
