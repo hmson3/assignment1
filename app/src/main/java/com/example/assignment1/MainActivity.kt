@@ -97,6 +97,7 @@ class MainActivity : AppCompatActivity() {
                 predictionLabel.visibility = View.GONE
                 wardrivingButton.isEnabled = true
                 localizationButton.isEnabled = true
+                rotateButton.isEnabled = true
                 File(filesDir, "wardriving_data.csv").delete()
                 Toast.makeText(this, "Map deleted and data cleared", Toast.LENGTH_SHORT).show()
             }
@@ -147,6 +148,7 @@ class MainActivity : AppCompatActivity() {
                 isWardrivingMode = true
                 wardrivingButton.isEnabled = false
                 localizationButton.isEnabled = true
+                rotateButton.isEnabled = false
                 stopLocalizationLoop()
                 blueMarker?.let {
                     frameLayout.removeView(it)
@@ -194,6 +196,7 @@ class MainActivity : AppCompatActivity() {
                 isWardrivingMode = false
                 wardrivingButton.isEnabled = true
                 localizationButton.isEnabled = false
+                rotateButton.isEnabled = false
                 markerViews.values.forEach { it.visibility = View.INVISIBLE }
 
                 startLocalizationLoop()
