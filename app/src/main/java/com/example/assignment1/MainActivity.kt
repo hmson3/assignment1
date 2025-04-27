@@ -22,6 +22,7 @@ import android.view.View
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
@@ -65,6 +66,8 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        checkAndRequestLocationPermission()
 
         frameLayout = findViewById(R.id.mapContainer)
         imageView = findViewById(R.id.mapImageView)
@@ -232,7 +235,18 @@ class MainActivity : AppCompatActivity() {
             insets
         }
     }
+    private fun checkAndRequestLocationPermission() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED) {
 
+            // 위치 권한 요청
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                100 // 요청 코드 (아무 숫자 가능)
+            )
+        }
+    }
 
     private fun addMarker(normX: Float, normY: Float) {
         if (markerPositions.any { (x, y) ->
