@@ -116,6 +116,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         exportButton.setOnClickListener {
+            if (!isMapUploaded) {
+                Toast.makeText(this, "Please upload a map first.", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
             val file = File(filesDir, "wardriving_data.csv")
 
             // 로그로 파일 경로 & 존재 여부 확인
