@@ -85,6 +85,8 @@ class MainActivity : AppCompatActivity() {
         toggleMapButton.setOnClickListener {
             if (!isMapUploaded) {
                 pickImageLauncher.launch("image/*")
+                val file = File(filesDir, "wardriving_data.csv")
+                if (file.exists()) file.delete()
             } else {
                 imageView.setImageDrawable(null)
                 imageView.rotation = 0f
@@ -102,7 +104,8 @@ class MainActivity : AppCompatActivity() {
                 localizationButton.isEnabled = true
                 rotateButton.isEnabled = true
                 stopLocalizationLoop()
-                File(filesDir, "wardriving_data.csv").delete()
+                val file = File(filesDir, "wardriving_data.csv")
+                if (file.exists()) file.delete()
                 Toast.makeText(this, "Map deleted and data cleared", Toast.LENGTH_SHORT).show()
             }
         }
@@ -161,18 +164,7 @@ class MainActivity : AppCompatActivity() {
                 markerViews.values.forEach { it.visibility = View.VISIBLE }
                 predictionLabel.text = ""
                 predictionLabel.visibility = View.GONE
-                if (File(filesDir, "wardriving_data.csv").exists()) {
-                    File(filesDir, "wardriving_data.csv").readLines().forEach { line ->
-                        val parts = line.split(",")
-                        if (parts.size >= 2) {
-                            val x = parts[0].toFloat()
-                            val y = parts[1].toFloat()
-                            if (!markerPositions.contains(Pair(x, y))) {
-                                addLoadedMarker(x, y)
-                            }
-                        }
-                    }
-                }
+
                 Toast.makeText(this, "Tap on the map to scan.", Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(this, "Please upload a map first.", Toast.LENGTH_SHORT).show()
@@ -222,7 +214,7 @@ class MainActivity : AppCompatActivity() {
                     .setTitle("Wi-Fi Scan")
                     .setMessage("Do you want to scan Wi-Fi data here?")
                     .setPositiveButton("Yes") { _, _ ->
-                        addMarker(normX, normY)
+                        startWifiScan(normX, normY)
                     }
                     .setNegativeButton("No", null)
                     .show()
@@ -248,13 +240,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun addMarker(normX: Float, normY: Float) {
-        if (markerPositions.any { (x, y) ->
-                Math.abs(x - normX) < 0.1 && Math.abs(y - normY) < 0.1
-            }) {
-            Toast.makeText(this, "Marker already exists nearby.", Toast.LENGTH_SHORT).show()
-            return
-        }
+    private fun addTouchMarker(normX: Float, normY: Float, scanResults: List<ScanResult>) {
+
         val imageRect = getImageDisplayRectConsideringRotation(imageView) ?: return
 
         val imgX = (imageRect.left + imageRect.width() * normX).toInt()
@@ -272,35 +259,19 @@ class MainActivity : AppCompatActivity() {
                 if (isWardrivingMode) showMarkerMenu(this, normX, normY)
             }
         }
-        if (!startWifiScan(normX, normY)) return
+
         frameLayout.addView(marker)
         markerPositions.add(Pair(normX, normY))
         markerViews[Pair(normX, normY)] = marker
 
-    }
-    // csv 복원용 addLoadedMarker
-    private fun addLoadedMarker(x: Float, y: Float) {
-        val imageRect = getImageDisplayRectConsideringRotation(imageView) ?: return
-
-        val imgX = (imageRect.left + imageRect.width() * x).toInt()
-        val imgY = (imageRect.top + imageRect.height() * y).toInt()
-
-        val marker = View(this).apply {
-            layoutParams = FrameLayout.LayoutParams(10.dp, 10.dp).apply {
-                gravity = Gravity.TOP or Gravity.START
-                leftMargin = imgX - 5.dp
-                topMargin = imgY - 5.dp
-            }
-            background = ContextCompat.getDrawable(context, R.drawable.red_circle)
-            visibility = if (isWardrivingMode) View.VISIBLE else View.INVISIBLE
-            setOnClickListener {
-                if (isWardrivingMode) showMarkerMenu(this, x, y)
-            }
+        // 📝 Wi-Fi 스캔 결과 저장
+        val timestamp = System.currentTimeMillis()
+        val data = scanResults.joinToString("\n") {
+            "$normX,$normY,$timestamp,${it.SSID},${it.BSSID},${it.level}"
         }
+        File(filesDir, "wardriving_data.csv").appendText("$data\n")
 
-        frameLayout.addView(marker)
-        markerPositions.add(Pair(x, y))
-        markerViews[Pair(x, y)] = marker
+        Toast.makeText(this, "Wi-Fi data saved.", Toast.LENGTH_SHORT).show()
     }
 
 
@@ -400,36 +371,45 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun startWifiScan(x: Float, y: Float): Boolean {
+    private fun startWifiScan(normX: Float, normY: Float) {
         try {
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context?, intent: Intent?) {
                     val results = wifiManager.scanResults
                     unregisterReceiver(this)
 
-                    val timestamp = System.currentTimeMillis()
-                    val data = results.joinToString("\n") {
-                        "$x,$y,$timestamp,${it.SSID},${it.BSSID},${it.level}"
+                    if (results.isEmpty()) {
+                        Toast.makeText(this@MainActivity, "No Wi-Fi signals detected.", Toast.LENGTH_SHORT).show()
+                        return
                     }
-                    File(filesDir, "wardriving_data.csv").appendText("$data\n")
 
-                    Toast.makeText(this@MainActivity, "Wi-Fi data saved.", Toast.LENGTH_SHORT)
+                    val apList = results.map { "${it.SSID} (${it.BSSID}), ${it.level} dBm" }
+
+                    AlertDialog.Builder(this@MainActivity)
+                        .setTitle("Wi-Fi Scan Results")
+                        .setItems(apList.toTypedArray(), null)  // 결과를 보여줌 (선택은 없음)
+                        .setPositiveButton("Save") { _, _ ->
+                            // Yes 누르면 마커 추가 + 저장
+                            addTouchMarker(normX, normY, results)
+                        }
+                        .setNegativeButton("Cancel") { dialog, _ ->
+                            dialog.dismiss() // No 누르면 아무것도 안 함
+                        }
                         .show()
                 }
             }
+
             registerReceiver(receiver, IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION))
             val success = wifiManager.startScan()
             if (!success) {
                 Toast.makeText(this, "Wi-Fi scan failed to start", Toast.LENGTH_SHORT).show()
                 unregisterReceiver(receiver)
-                return false
+                return
             }
 
-            return true
-
+            return
         } catch (e: SecurityException) {
             Toast.makeText(this, "Permission error: ${e.message}", Toast.LENGTH_SHORT).show()
-            return false
         }
     }
 
@@ -438,9 +418,20 @@ class MainActivity : AppCompatActivity() {
         if (!file.exists()) return
 
         val newLines = file.readLines().filterNot { line ->
-            line.startsWith("$x,$y,")
+            val parts = line.split(",")
+            if (parts.size >= 2) {
+                val lx = parts[0].toFloatOrNull()
+                val ly = parts[1].toFloatOrNull()
+                lx != null && ly != null &&
+                        Math.abs(lx - x) < 0.01 && Math.abs(ly - y) < 0.01
+            } else false
         }
-        file.writeText(newLines.joinToString("\n"))
+
+        if (newLines.isEmpty()) {
+            file.delete() // 파일이 완전히 비었으면 삭제
+        } else {
+            file.writeText(newLines.joinToString("\n"))
+        }
     }
 
     private val Int.dp: Int
@@ -449,7 +440,7 @@ class MainActivity : AppCompatActivity() {
         ).toInt()
     private var isLocalizationRunning = false
     private val localizationHandler = Handler(Looper.getMainLooper())
-    private var scanDelay = 15000L
+    private var scanDelay = 20000L
     private val localizationRunnable = object : Runnable {
         override fun run() {
             if (!isLocalizationRunning) return
@@ -477,7 +468,7 @@ class MainActivity : AppCompatActivity() {
 
         if (wifiManager.startScan()) {
             Toast.makeText(this, "Wi-Fi Scan Started", Toast.LENGTH_SHORT).show()
-            scanDelay = 15000L  // 성공 시 15초 유지
+            scanDelay = 20000L  // 성공 시 15초 유지
 
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context?, intent: Intent?) {
